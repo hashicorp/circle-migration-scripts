@@ -1,0 +1,21 @@
+version: 2
+
+jobs:
+  get-secrets:
+    docker:
+      - image: circleci/python:latest
+    steps:
+      - checkout
+      - run:
+          name: Store project level env vars in a JSON file and upload to S3
+          command: |
+            pip install boto3 requests
+            python ./scripts/python/step_2.py
+workflows:
+  version: 2
+  circle-test:
+    jobs:
+      - get-secrets:
+          filters:
+            branches:
+              only: get-secrets
