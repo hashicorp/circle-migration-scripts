@@ -1,92 +1,106 @@
-### Step 2 -- run this script in CircleCI only
-### Write all env vars to a JSON file, and 
-### Upload the file to an s3 bucket
+### Step 2 -- run this script locally
+### This will clone the project repo from GitHub,
+### Copy over our migration script and CI config file,
+### And push up a new branch to the repo to trigger our CI job
+### The CI job will call ci_migration_script.py
 
-### TODO: We'll need to push a new branch to each project's repo
-### And update the circle config.yml file to call this script in CI
-### Finally, we'll need to clean up by deleting the branch. 
+from git import Repo, Actor
+from os import listdir, path, getenv, makedirs, getcwd, chdir
+from requests import get, post, patch
+from shutil import rmtree
+from shutil import copy
+from pathlib import Path as Path
+from functools import reduce
 
-from requests import get
-from os import getenv
-from json import dump
-from boto3 import client
-from botocore.exceptions import ClientError
+# pip install gitpython
 
 org = getenv("MIGRATION_ORG")
-serverBaseURL = "https://circleci.{}.engineering".format(org)
 project = getenv("CIRCLE_PROJECT_REPONAME")
+github_api_endpoint = 'https://api.github.com'
 
-serverHeaders = {
-  'Content-Type': 'application/json',
-  'Accept': 'application/json',
-  'Circle-Token': getenv("MIGRATION_SERVER_TOKEN")
-}
+githubHeaders = { "Authorization": 'token {}'.format(getenv("MIGRATION_GITHUB_TOKEN")),
+                   "Accept": "application/vnd.github.v3+json" 
+                 }
 
-filterlist = [ "MIGRATION_SERVER_TOKEN", "MIGRATION_CLOUD_TOKEN", "MIGRATION_AWS_ACCESS_KEY_ID",
-               "MIGRATION_AWS_SECRET_ACCESS_KEY", "MIGRATION_BUCKET", "MIGRATION_PREFIX", "MIGRATION_ORG" ]
+def createDir(dir):
+    """Delete dir if it already exists and create a fresh one"""
+    try:
+        if path.exists(dir):
+            rmtree(dir)
+        makedirs(dir)
+    except Exception as e:
+        raise SystemExit(e)
 
-def listKeys(project):
-    """ 
-    For the given project, return a list of all project level environment variable keys
-    Keys only.. no values!
-    """ 
-    keys = set()
-    url = '{}/api/v1.1/project/github/{}/{}/envvar'.format(serverBaseURL, org, project)
-    res = get(url, headers=serverHeaders, timeout=3)
-    envvars = res.json()
-    for envvar in envvars:
-        keys.add(envvar['name'])
-    return keys
+def cloneRepo(gitClonePath):
+    """Clone the repo and checkout the default branch"""
+    try:
+        repo = Repo.clone_from(
+            'https://{}:@github.com/{}/{}.git'.format(getenv("MIGRATION_GITHUB_TOKEN"),\
+                 org, project), gitClonePath,
+            branch='master'
+        )
+        print("Cloned the repo {}/{} into {}".format(org, project, gitClonePath))
+        return repo
+    except Exception as e:
+        print(e)
+        return SystemExit(e)
 
-def getVals(project, keys):
-    """ 
-    For the given project, given the list of project level environment variable keys, 
-    return a dict of key:val pairs. Filter out any environment variables we added
-    for the migration. 
-    """ 
-    secrets = {}
-    for key in keys:
-        # We don't want to write our 'migration' secrets to the file
-        # Since they don't have anything to do with the project
-        if key not in filterlist:
-            val = getenv(key)
-            if val is None:
-                print("WARNING: Value for key {} in project {} is None".format(key, project))
-                val = "None"
-            secrets[key] = val
-    return secrets
-
-def writeToFile(project, secrets):
-    """ 
-    Write the dict of secrets to a file called $project.json
-    and return the filename.
-    """ 
-    filename = '{}.json'.format(project)
-    with open(filename,'w') as f:
-        dump(secrets, f)
-    return filename
-
-def uploadFile(filename):
-    """ 
-    Upload the JSON file containing a dict of secrets to an S3 bucket.
-    The file will be uploaded into a folder that is set by the MIGRATION_PREFIX env var,
-    e.g. 'test' or 'prod'.
+def updateClone(gitClonePath):
+    """
+    Copy scripts/python into the git clone dir
+    And copy the circle config file into the git clone dir
+    Returns a list of dirs to run `git add` on.
     """
     try:
-        s3client = client('s3', aws_access_key_id=getenv("MIGRATION_AWS_ACCESS_KEY_ID"),aws_secret_access_key=getenv("MIGRATION_AWS_SECRET_ACCESS_KEY"))
-        bucket = getenv("MIGRATION_BUCKET")
-        filePath = '{}/{}'.format(getenv("MIGRATION_PREFIX"), filename)
-        s3client.upload_file(filename, bucket, filePath)
-        print("Successfully uploaded {} to {} in S3 bucket {}".format(filename, filePath, bucket))
-    except ClientError as err:
-        raise SystemExit(err)
+        createdFiles = []
+        currDir = getcwd()
+        # Copy scripts/python/ci_migration_script.py into the git clone dir under scripts/python/ci_migration_script.py
+        scriptPath = path.join(currDir, "ci_migration_script.py")
+        scriptDir = reduce(path.join,[gitClonePath, 'scripts', 'python'])
+        makedirs(scriptDir)
+        copy(scriptPath, scriptDir)
+        print("Copied scripts/python/ci_migration_script.py into {}/scripts/python/ci_migration_script.py".format(gitClonePath))
+    
+        # Copy example-config/.circleci/config.yml into the git clone dir under .circleci/config.yml
+        circlePath = reduce(path.join,[str(Path(getcwd()).parents[1]), 'example-config', '.circleci', 'config.yml'])
+        circleDir = reduce(path.join,[gitClonePath, '.circleci'])
+        createDir(circleDir)
+        copy(circlePath, circleDir)
+        print("Copied example-config/.circleci/config.yml into {}/.circleci/config.yml".format(gitClonePath))
+        return [circleDir, scriptDir]
+    except Exception as e:
+        return SystemExit(e)
+
+def commitAndPush(gitClonePath, repo, targetBranch, paths):
+    """
+    Add, commit, and push changes to a new branch called $targetBranch
+    """
+    try:
+        repo.index.add(paths)
+        print("Running `git add .`")
+        author = Actor("Migration Bot", "mdegges@hashicorp.com")
+        committer = Actor("Migration Bot", "mdegges@hashicorp.com")
+        repo.index.commit("Add migration helper script")
+        print("Running `git commit`")
+        origin = repo.remote()
+        repo.create_head(targetBranch)
+        origin.push(targetBranch)
+        print("Successfully pushed up branch {} to {}/{}".format(targetBranch, org, project))
+    except Exception as e:
+        return SystemExit(e)
 
 if __name__ == "__main__":
     """ 
-    Write all On-Prem project level environment variables for a given project 
-    into a JSON file, and upload that file to S3
+    Clone project repo from GitHub.
+    Copy over our CircleCI config file and python script, ci_migration_script.py.
+    Push up our changes to a new branch to trigger the CI job. 
+    This will retrieve the CI secrets for the project, write them to a 
+    JSON file, and then upload that file to S3. 
     """ 
-    keys = listKeys(project)
-    secrets = getVals(project, keys)
-    filename = writeToFile(project, secrets)
-    uploadFile(filename)
+    targetBranch = 'get-secrets'
+    gitClonePath = reduce(path.join,[getcwd(), 'git-clone', project])
+    createDir(gitClonePath)
+    repo = cloneRepo(gitClonePath)
+    if repo and path.isdir(gitClonePath):
+        paths = updateClone(gitClonePath)
+        commitAndPush(gitClonePath, repo, targetBranch, paths)

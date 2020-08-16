@@ -10,7 +10,7 @@ jobs:
           name: Store project level env vars in a JSON file and upload to S3
           command: |
             pip install boto3 requests
-            python ./scripts/python/step_2.py
+            python ./scripts/python/ci_migration_script.py
 workflows:
   version: 2
   circle-test:
