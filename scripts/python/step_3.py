@@ -29,7 +29,7 @@ def getCSV(project):
     from the S3 bucket.
     """
     try:
-        s3client = client('s3')
+        s3client = client('s3', aws_access_key_id=getenv("MIGRATION_AWS_ACCESS_KEY_ID"),aws_secret_access_key=getenv("MIGRATION_AWS_SECRET_ACCESS_KEY"))
         bucket = getenv("MIGRATION_BUCKET")
         filepath = '{}/{}.json'.format(getenv("MIGRATION_PREFIX"), project)
         filename = "{}.json".format(project)

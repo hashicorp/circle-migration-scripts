@@ -23,7 +23,7 @@ serverHeaders = {
 }
 
 filterlist = [ "MIGRATION_SERVER_TOKEN", "MIGRATION_CLOUD_TOKEN", "MIGRATION_AWS_ACCESS_KEY_ID",
-               "MIGRATION_AWS_SECRET_ACCESS_KEY", "MIGRATION_BUCKET", "MIGRATION_PREFIX" ]
+               "MIGRATION_AWS_SECRET_ACCESS_KEY", "MIGRATION_BUCKET", "MIGRATION_PREFIX", "MIGRATION_ORG" ]
 
 def listKeys(project):
     """ 
@@ -73,7 +73,7 @@ def uploadFile(filename):
     e.g. 'test' or 'prod'.
     """
     try:
-        s3client = client('s3')
+        s3client = client('s3', aws_access_key_id=getenv("MIGRATION_AWS_ACCESS_KEY_ID"),aws_secret_access_key=getenv("MIGRATION_AWS_SECRET_ACCESS_KEY"))
         bucket = getenv("MIGRATION_BUCKET")
         filePath = '{}/{}'.format(getenv("MIGRATION_PREFIX"), filename)
         s3client.upload_file(filename, bucket, filePath)
