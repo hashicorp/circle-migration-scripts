@@ -78,8 +78,8 @@ def commitAndPush(gitClonePath, repo, targetBranch, paths):
     try:
         repo.index.add(paths)
         print("Running `git add .`")
-        author = Actor("Migration Bot", "mdegges@hashicorp.com")
-        committer = Actor("Migration Bot", "mdegges@hashicorp.com")
+        author = Actor("Migration Bot", "team-rel-eng@hashicorp.com")
+        committer = Actor("Migration Bot", "team-rel-eng@hashicorp.com")
         repo.index.commit("Add migration helper script")
         print("Running `git commit`")
         origin = repo.remote()
