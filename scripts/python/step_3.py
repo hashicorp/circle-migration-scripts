@@ -7,20 +7,29 @@
 ### WARNING: If env vars with the same names already exist in the SaaS project,
 ### This script will OVERWRITE them! 
 
-from requests import post, exceptions
+from requests import get, post, put, exceptions
 from os import getenv
-from json import dumps, load
+from json import dumps, load, loads
 from boto3 import s3, client
 from botocore.exceptions import ClientError
+import jq
 
 org = getenv("MIGRATION_ORG")
 cloudBaseURL = "https://circleci.com/api/v2/project/gh/{}".format(org)
+cloudV1URL = "https://circleci.com/api/v1.1/project/github/{}".format(org)
+onPremBaseURL = "https://circleci.hashicorp.engineering/api/v1.1/project/gh/{}".format(org)
 project = getenv("CIRCLE_PROJECT_REPONAME")
 
 cloudHeaders = {
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   'Circle-Token': getenv("MIGRATION_CLOUD_TOKEN")
+}
+
+onPremHeaders = {
+  'Content-Type': 'application/json',
+  'Accept': 'application/json',
+  'Circle-Token': getenv("MIGRATION_SERVER_TOKEN")
 }
 
 def getCSV(project):
@@ -54,13 +63,7 @@ def postToCircle(project, key, val):
         res = post(url, headers=cloudHeaders, data=dumps(data), timeout=3)
         res.raise_for_status()
         print('Successfully set env var {} in project {}'.format(res.json(), project))
-    except exceptions.HTTPError as err:
-        raise SystemExit(err)
-    except exceptions.ConnectionError as err:
-        raise SystemExit(err)
-    except exceptions.Timeout as err:
-        raise SystemExit(err)
-    except exceptions.RequestException as err:
+    except (exceptions.HTTPError, exceptions.ConnectionError, exceptions.Timeout, exceptions.RequestException) as err:
         raise SystemExit(err)
 
 def uploadSecrets(project, filename):
@@ -73,6 +76,39 @@ def uploadSecrets(project, filename):
         for key, val in secrets.items():
             postToCircle(project, key, val)
 
+def getAndUploadSettings(project):
+    """
+    Use CircleCI API and jq to pull down a project's Settings
+    from OnPrem and upload them to the active SaaS project.
+    """
+    settings = jq.compile('."feature_flags" | del(."builds-service") | del(."fleet")').input(getSettings(project)).text()
+    print('Successfully got settings for project {}:\n{}'.format(project, settings))
+    uploadSettings(settings)
+
+def getSettings(project):
+    url = "{}/{}/settings".format(onPremBaseURL, project)
+    data = {}
+    print("GET url: {}\nheaders: {}".format(url, onPremHeaders))
+
+    try:
+        res = get(url, headers=onPremHeaders, data=data, timeout=3)
+        res.raise_for_status()
+    except (exceptions.HTTPError, exceptions.ConnectionError, exceptions.Timeout, exceptions.RequestException) as err:
+        raise SystemExit(err)
+    return res.json()
+
+def uploadSettings(settings):
+    url = "{}/{}/settings".format(cloudV1URL, project)
+    data = dumps({"feature_flags": loads(settings)})
+    print("PUT url: {}\nheaders: {}\ndata: {}".format(url, cloudHeaders, data))
+
+    try:
+        res = put(url, headers=cloudHeaders, data=data, timeout=3)
+        res.raise_for_status()
+        print('Successfully put settings for project {}'.format(project))
+    except (exceptions.HTTPError, exceptions.ConnectionError, exceptions.Timeout, exceptions.RequestException) as err:
+        raise SystemExit(err)
+
 if __name__ == "__main__":
     """
     For a given project, download the JSON file containing the project level 
@@ -81,3 +117,4 @@ if __name__ == "__main__":
     """
     filename = getCSV(project)
     uploadSecrets(project, filename)
+    getAndUploadSettings(project)
