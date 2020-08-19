@@ -52,7 +52,6 @@ def updateClone(gitClonePath):
     Returns a list of dirs to run `git add` on.
     """
     try:
-        createdFiles = []
         currDir = getcwd()
         # Copy scripts/python/ci_migration_script.py into the git clone dir under scripts/python/ci_migration_script.py
         scriptPath = path.join(currDir, "ci_migration_script.py")
@@ -78,8 +77,8 @@ def commitAndPush(gitClonePath, repo, targetBranch, paths):
     try:
         repo.index.add(paths)
         print("Running `git add .`")
-        author = Actor("Migration Bot", "team-rel-eng@hashicorp.com")
-        committer = Actor("Migration Bot", "team-rel-eng@hashicorp.com")
+        # This requires being authenticated with GitHub locally,
+        # rather than adding a service account to all repos for migration
         repo.index.commit("Add migration helper script")
         print("Running `git commit`")
         origin = repo.remote()
