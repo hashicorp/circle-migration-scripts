@@ -15,6 +15,9 @@ Add real secrets to `.env`
 Source the secrets on your local machine to set the env vars:
 `source .env`
 
+Install the dependencies needed to run the scripts locally:
+`pip install -r requirements.txt`
+
 **NOTE** Anytime you want to migrate a new project, remember to change the value of `CIRCLE_PROJECT_REPONAME` in the `.env` and resource. All scripts below should be run from the root of the project. 
 
 1. Start with the script called `step_1.py` in `scripts/python`. <br />
