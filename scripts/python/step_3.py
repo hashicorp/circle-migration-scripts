@@ -12,13 +12,14 @@ from os import getenv
 from json import dumps, load, loads
 from boto3 import s3, client
 from botocore.exceptions import ClientError
-import jq
+from jq import compile
 
 org = getenv("MIGRATION_ORG")
-cloudBaseURL = "https://circleci.com/api/v2/project/gh/{}".format(org)
-cloudV1URL = "https://circleci.com/api/v1.1/project/github/{}".format(org)
-onPremBaseURL = "https://circleci.hashicorp.engineering/api/v1.1/project/gh/{}".format(org)
 project = getenv("CIRCLE_PROJECT_REPONAME")
+
+cloudV2URL = "https://circleci.com/api/v2/project/gh/{}".format(org)
+cloudV1URL = "https://circleci.com/api/v1.1/project/github/{}".format(org)
+onPremURL = "https://circleci.{}.engineering/api/v1.1/project/gh/{}".format(org, org)
 
 cloudHeaders = {
   'Content-Type': 'application/json',
@@ -57,7 +58,7 @@ def postToCircle(project, key, val):
         'name': key,
         'value': val
     }
-    url = '{}/{}/envvar'.format(cloudBaseURL, project)
+    url = '{}/{}/envvar'.format(cloudV2URL, project)
 
     try: 
         res = post(url, headers=cloudHeaders, data=dumps(data), timeout=3)
@@ -81,12 +82,12 @@ def getAndUploadSettings(project):
     Use CircleCI API and jq to pull down a project's Settings
     from OnPrem and upload them to the active SaaS project.
     """
-    settings = jq.compile('."feature_flags" | del(."builds-service") | del(."fleet")').input(getSettings(project)).text()
+    settings = compile('."feature_flags" | del(."builds-service") | del(."fleet")').input(getSettings(project)).text()
     print('Successfully got settings for project {}:\n{}'.format(project, settings))
     uploadSettings(settings)
 
 def getSettings(project):
-    url = "{}/{}/settings".format(onPremBaseURL, project)
+    url = "{}/{}/settings".format(onPremURL, project)
     data = {}
     print("GET url: {}\nheaders: {}".format(url, onPremHeaders))
 

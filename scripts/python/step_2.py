@@ -77,7 +77,7 @@ def commitAndPush(gitClonePath, repo, targetBranch, paths):
     try:
         repo.index.add(paths)
         print("Running `git add .`")
-        # This requires being authenticated with GitHub locally,
+        # This requires being authenticated with GitHub locally as an org admin,
         # rather than adding a service account to all repos for migration
         repo.index.commit("Add migration helper script")
         print("Running `git commit`")
