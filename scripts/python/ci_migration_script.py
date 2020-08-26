@@ -1,7 +1,5 @@
-### Step 2 -- this will be run in CircleCI.
-### step_2_pre.py will trigger it automatically. 
-### Write all env vars to a JSON file, and 
-### Upload the file to an s3 bucket
+### This will be run in CircleCI, triggered after running step_1.py locally
+### This will write all env vars to a JSON file, and upload the file to an s3 bucket
 
 from requests import get
 from os import getenv
