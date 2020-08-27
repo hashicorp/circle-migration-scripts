@@ -13,19 +13,19 @@ from functools import reduce
 
 org = getenv("MIGRATION_ORG")
 project = getenv("CIRCLE_PROJECT_REPONAME")
-serverBaseURL = "https://circleci.{}.engineering".format(org)
 tempBranch = 'get-secrets'
 gitClonePath = reduce(path.join,[getcwd(), 'git-clone', project])
 
 serverHeaders = {
   'Content-Type': 'application/json',
   'Accept': 'application/json',
-  'Circle-Token': getenv("MIGRATION_SERVER_TOKEN")
+  'Circle-Token': getenv("MIGRATION_CIRCLE_SERVER_TOKEN")
 }
 
-envVarList = [ "MIGRATION_SERVER_TOKEN", "MIGRATION_CLOUD_TOKEN", "MIGRATION_AWS_ACCESS_KEY_ID",
+envVarList = [ "MIGRATION_CIRCLE_SERVER_TOKEN", "MIGRATION_CIRCLE_CLOUD_TOKEN", "MIGRATION_AWS_ACCESS_KEY_ID",
                "MIGRATION_AWS_SECRET_ACCESS_KEY", "MIGRATION_BUCKET", "MIGRATION_PREFIX", "MIGRATION_ORG",
-               "MIGRATION_GITHUB_TOKEN" ]
+               "MIGRATION_GITHUB_TOKEN", "MIGRATION_CIRCLE_SERVER_URL_V1", "MIGRATION_CIRCLE_CLOUD_URL_V1",
+               "MIGRATION_CIRCLE_CLOUD_URL_V2" ]
 
 def createEnvVar(key):
     """ 
@@ -40,7 +40,7 @@ def createEnvVar(key):
         'name': key,
         'value': val
     }
-    url = '{}/api/v1.1/project/github/{}/{}/envvar'.format(serverBaseURL, org, project)
+    url = '{}/{}/{}/envvar'.format(getenv("MIGRATION_CIRCLE_SERVER_URL_V1"), org, project)
 
     try: 
         res = post(url, headers=serverHeaders, data=dumps(data), timeout=3)

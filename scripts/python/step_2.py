@@ -8,13 +8,14 @@
 ### This script will OVERWRITE them! 
 
 from requests import get, post, put, exceptions
-from os import getenv, path, getcwd
+from os import getenv, path, getcwd, remove
 from json import dumps, load, loads
 from boto3 import s3, client
 from botocore.exceptions import ClientError
 from jq import compile
 from github import Github
 from functools import reduce
+from shutil import rmtree
 
 org = getenv("MIGRATION_ORG")
 project = getenv("CIRCLE_PROJECT_REPONAME")
@@ -22,20 +23,32 @@ tempBranch = 'get-secrets'
 gitClonePath = reduce(path.join,[getcwd(), 'git-clone', project])
 
 cloudV2URL = "https://circleci.com/api/v2/project/gh/{}".format(org)
-cloudV1URL = "https://circleci.com/api/v1.1/project/github/{}".format(org)
-onPremURL = "https://circleci.{}.engineering/api/v1.1/project/gh/{}".format(org, org)
 
 cloudHeaders = {
   'Content-Type': 'application/json',
   'Accept': 'application/json',
-  'Circle-Token': getenv("MIGRATION_CLOUD_TOKEN")
+  'Circle-Token': getenv("MIGRATION_CIRCLE_CLOUD_TOKEN")
 }
 
 onPremHeaders = {
   'Content-Type': 'application/json',
   'Accept': 'application/json',
-  'Circle-Token': getenv("MIGRATION_SERVER_TOKEN")
+  'Circle-Token': getenv("MIGRATION_CIRCLE_SERVER_TOKEN")
 }
+
+def deleteLocalFiles():
+    """Delete local files created by this script and step_1.py"""
+    try:
+        gitcloneDir = reduce(path.join,[getcwd(), 'git-clone'])
+        jsonFilePath = reduce(path.join,[getcwd(), '{}.json'.format(project)])
+        if path.exists(jsonFilePath):
+            remove(jsonFilePath)
+        if path.exists(gitcloneDir):
+            rmtree(gitcloneDir)
+        print('Deleted local files/directories created by this script: {}, {}'.format(jsonFilePath, gitClonePath))
+    except Exception as e:
+        # Print the error, but don't exit. We can move on from this! 
+        print('Failed to cleanup temporary local files/directories created by this script: {}'.format(e))
 
 def deleteBranch(branch):
     """Delete the temporary branch we created in step_1.py, get-secrets"""
@@ -43,13 +56,13 @@ def deleteBranch(branch):
         g = Github(getenv("MIGRATION_GITHUB_TOKEN"))
         repo = g.get_repo('{}/{}'.format(org, project))
         if repo:
-            print('Attempting to delete branch {} in project {}/{}'.format(branch, org, project))
             repo.get_git_ref('heads/{}'.format(branch)).delete()
             print('Deleted branch {} in project {}/{}'.format(branch, org, project))
     except Exception as e:
-        return SystemExit(e)
+        # Print the error, but don't exit. We can move on from this! 
+        print('Failed to delete branch branch {} in project {}/{}: {}'.format(branch, org, project, e))
 
-def getCSV(project):
+def getJSON(project):
     """
     Download the JSON file containing the project's secret key:val pairs
     from the S3 bucket.
@@ -103,7 +116,7 @@ def getAndUploadSettings(project):
     uploadSettings(settings)
 
 def getSettings(project):
-    url = "{}/{}/settings".format(onPremURL, project)
+    url = "{}/{}/{}/settings".format(getenv("MIGRATION_CIRCLE_SERVER_URL_V1"), org, project)
     data = {}
     print("GET url: {}\nheaders: {}".format(url, onPremHeaders))
 
@@ -115,7 +128,7 @@ def getSettings(project):
     return res.json()
 
 def uploadSettings(settings):
-    url = "{}/{}/settings".format(cloudV1URL, project)
+    url = "{}/{}/{}/settings".format(getenv("MIGRATION_CIRCLE_CLOUD_URL_V1"), org, project)
     data = dumps({"feature_flags": loads(settings)})
     print("PUT url: {}\nheaders: {}\ndata: {}".format(url, cloudHeaders, data))
 
@@ -132,7 +145,8 @@ if __name__ == "__main__":
     environment variable key:val pairs, that were retrieved from On-Prem. 
     Set these environment variables for the project in SaaS.
     """
-    filename = getCSV(project)
+    filename = getJSON(project)
     uploadSecrets(project, filename)
     getAndUploadSettings(project)
     deleteBranch(tempBranch)
+    deleteLocalFiles()
