@@ -11,12 +11,14 @@ import (
 	"strings"
 )
 
+const (
+	app        = "circleci"
+	subCommand = "context"
+)
+
 // uploadContext uses the circleci CLI upload context kv pairs
 func uploadContext(result map[string]map[string]string, vcs, org, contextName string) error {
 	// create CircleCI Context
-	app := "circleci"
-	subCommand := "context"
-
 	cmd := exec.Command(app, subCommand, "create", vcs, org, contextName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
