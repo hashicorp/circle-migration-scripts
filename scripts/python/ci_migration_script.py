@@ -1,7 +1,5 @@
-### Step 2 -- this will be run in CircleCI.
-### step_2_pre.py will trigger it automatically. 
-### Write all env vars to a JSON file, and 
-### Upload the file to an s3 bucket
+### This will be run in CircleCI, triggered after running step_1.py locally
+### This will write all env vars to a JSON file, and upload the file to an s3 bucket
 
 from requests import get
 from os import getenv
@@ -10,18 +8,18 @@ from boto3 import client
 from botocore.exceptions import ClientError
 
 org = getenv("MIGRATION_ORG")
-serverBaseURL = "https://circleci.{}.engineering".format(org)
 project = getenv("CIRCLE_PROJECT_REPONAME")
 
 serverHeaders = {
   'Content-Type': 'application/json',
-  'Accept': 'application/json',
-  'Circle-Token': getenv("MIGRATION_SERVER_TOKEN")
+  'Accept': 'application/json', 
+  'Circle-Token': getenv("MIGRATION_CIRCLE_SERVER_TOKEN")
 }
 
-filterlist = [ "MIGRATION_SERVER_TOKEN", "MIGRATION_CLOUD_TOKEN", "MIGRATION_AWS_ACCESS_KEY_ID",
+filterlist = [ "MIGRATION_CIRCLE_SERVER_TOKEN", "MIGRATION_CIRCLE_CLOUD_TOKEN", "MIGRATION_AWS_ACCESS_KEY_ID",
                "MIGRATION_AWS_SECRET_ACCESS_KEY", "MIGRATION_BUCKET", "MIGRATION_PREFIX", "MIGRATION_ORG",
-               "MIGRATION_GITHUB_TOKEN" ]
+               "MIGRATION_GITHUB_TOKEN", "MIGRATION_CIRCLE_SERVER_URL_V1", "MIGRATION_CIRCLE_CLOUD_URL_V1",
+               "MIGRATION_CIRCLE_CLOUD_URL_V2" ]
 
 def listKeys(project):
     """ 
@@ -29,7 +27,7 @@ def listKeys(project):
     Keys only.. no values!
     """ 
     keys = set()
-    url = '{}/api/v1.1/project/github/{}/{}/envvar'.format(serverBaseURL, org, project)
+    url = '{}/{}/{}/envvar'.format(getenv('MIGRATION_CIRCLE_SERVER_URL_V1'), org, project)
     res = get(url, headers=serverHeaders, timeout=3)
     envvars = res.json()
     for envvar in envvars:
