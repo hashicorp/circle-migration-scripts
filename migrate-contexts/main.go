@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -24,22 +23,22 @@ func uploadContext(result map[string]map[string]string, vcs, org, contextName st
 	cmd.Stderr = os.Stderr
 	// attempt to create the context
 	err := cmd.Run()
+
+	if err == nil {
+		log.Printf("Context %q created\n", contextName)
+	}
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
+		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 255 {
 			// 255 is the error the CLI returns if the context already exists
-			if ee.ExitCode() == 255 {
-				log.Printf("Context '%s' exists already\n", contextName)
-			} else {
-				return err
-			}
+			log.Printf("Context %q exists already\n", contextName)
+		} else {
+			return err
 		}
-	} else {
-		log.Printf("Context '%s' created\n", contextName)
 	}
 
 	// loop through each KV pair and add to context
 	for key, value := range result[contextName] {
-		fmt.Printf("Uploading...\nkey: %s\nvalue: %s\n", key, value)
+		log.Printf("Uploading key: %q, value: %q\n", key, value)
 		cmd = exec.Command(app, subCommand, "store-secret", vcs, org, contextName, key)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -62,26 +61,22 @@ func main() {
 	flag.Parse()
 
 	if inputFile == "" {
-		fmt.Println("Error: -file needs to be set")
-		os.Exit(1)
+		log.Fatalln("Error: -file needs to be set")
 	}
 
 	if org == "" {
-		fmt.Println("Error: -org needs to be set")
-		os.Exit(1)
+		log.Fatalln("Error: -org needs to be set")
 	}
 
 	// read json file
 	jsonFile, err := ioutil.ReadFile(inputFile)
 	var result map[string]map[string]string
 	if err != nil {
-		fmt.Printf("Error reading inputFile: %s", err)
-		os.Exit(1)
+		log.Fatalf("Error reading inputFile: %v", err)
 	}
 	err = json.Unmarshal([]byte(jsonFile), &result)
 	if err != nil {
-		fmt.Printf("Error unmarshalling inputFile: %s", err)
-		os.Exit(1)
+		log.Fatalf("Error unmarshalling inputFile: %v", err)
 	}
 
 	// if --context isn't set we loop through all contexts in the json file, otherwise
@@ -90,15 +85,13 @@ func main() {
 		for name := range result {
 			err := uploadContext(result, vcs, org, name)
 			if err != nil {
-				fmt.Printf("Error executing uploadContext on the '%s' context: %v\n", name, err)
-				os.Exit(1)
+				log.Fatalf("Error executing uploadContext on the %q context: %v\n", name, err)
 			}
 		}
-	} else {
-		err := uploadContext(result, vcs, org, contextName)
-		if err != nil {
-			fmt.Printf("Error executing uploadContext on the '%s' context: %v\n", contextName, err)
-			os.Exit(1)
-		}
+		os.Exit(0)
+	}
+	err = uploadContext(result, vcs, org, contextName)
+	if err != nil {
+		log.Fatalf("Error executing uploadContext on the %q context: %v\n", contextName, err)
 	}
 }
