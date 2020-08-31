@@ -3,15 +3,20 @@
 ## Extract Contexts from On-Prem
 
 ### Get List of Contexts
-1. Get onto the `services` box
+1. Get onto the [`services`](https://circleci.com/docs/2.0/overview/#services-machine) host
+```
+ssh ubuntu@services.circleci.myorg.com
+```
 2. Run the following to output a csv file of `contextname,context_uuid`
 ```
 sudo docker exec postgres psql -U circle -d contexts_service_production -c "\copy (select name,id from contexts) TO STDOUT WITH CSV" > contexts.csv
 ```
 
 ### Get Contexts from REPL
-1. Get onto the `services` box
-2. Connect to the `contexts-service` container via Docker
+
+Prereq: Complete the steps to [get a list of contexts](#get-list-of-contexts)
+
+1. Connect to the `contexts-service` container via Docker. **Note:** This may only be accessible through the `services` host
 ```
 sudo docker exec -ti contexts-service bash
 ```
@@ -41,7 +46,9 @@ lein repl :connect 2718
   (cheshire.core/generate-stream data writer))
 ```
 5. SCP it back out to the host you need it on
-
+```
+scp -o 'ProxyJump ubuntu@bastion.circleci.org.com' ubuntu@services.circleci.myorg.com:/home/ubuntu/contexts.json contexts.json
+```
 ## Uploading Contexts to CircleCI SaaS
 
 1. Install the [circleci-cli](https://github.com/CircleCI-Public/circleci-cli) and login to your account. This will be used to authenticate in the program.
