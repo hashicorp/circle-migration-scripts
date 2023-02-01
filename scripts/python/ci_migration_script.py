@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
 ### This will be run in CircleCI, triggered after running step_1.py locally
 ### This will write all env vars to a JSON file, and upload the file to an s3 bucket
 
