@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
 ### Step 1 -- run this script locally
 ### Create required env vars in the Circle-CI On-Prem project, and trigger a CI job.
 ### WARNING: If env vars with the same names are already set for the project, 

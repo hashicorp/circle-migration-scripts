@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
 ### Step 3 -- run this script locally
 ### Download the JSON file from S3 containing the project's secrets,
 ### and POST these as project-level environment variables in CircleCI SaaS 
